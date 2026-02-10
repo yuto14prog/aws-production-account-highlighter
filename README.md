@@ -4,16 +4,25 @@
 
 1. `config.sample.js`を`config.js`にコピー
 ```bash
-   cp config.sample.js config.js
+cp config.sample.js config.js
 ```
 
 2. `config.js`を編集して、本番アカウントIDを設定
 ```javascript
-   const CONFIG = {
-     PRODUCTION_ACCOUNT_IDS: [
-       '477313216013',  // 実際のアカウントID
-     ]
-   };
+const CONFIG = {
+  PRODUCTION_ACCOUNT_IDS: [
+    '477313216013',  // 実際のアカウントID
+  ]
+};
 ```
 
-3. ブラウザに拡張機能としてインストール
+3. ZIP化（Firefox用）
+```bash
+zip -r aws-prod-highlighter.zip manifest.json content.js config.js icons/ -x "*.DS_Store" "*/__MACOSX/*"
+```
+
+4. Firefoxにインストール
+- `about:debugging` にアクセス
+- 「この Firefox」を選択
+- 「一時的なアドオンを読み込む」をクリック
+- 作成した `aws-prod-highlighter.zip` を選択
