@@ -1,0 +1,25 @@
+{
+    "manifest_version": 3,
+    "name": "AWS Production Account Highlighter",
+    "version": "1.0.0",
+    "description": "AWS本番アカウントのヘッダーを赤色で強調表示します",
+    "icons": {
+        "16": "icons/icon16.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://*.console.aws.amazon.com/*",
+                "https://console.aws.amazon.com/*"
+            ],
+            "js": [
+                "config.js",
+                "content.js"
+            ],
+            "run_at": "document_end"
+        }
+    ],
+    "permissions": []
+}
