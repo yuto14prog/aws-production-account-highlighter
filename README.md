@@ -22,7 +22,5 @@ zip -r aws-prod-highlighter.zip manifest.json content.js config.js icons/ -x "*.
 ```
 
 4. Firefoxにインストール
-- `about:debugging` にアクセス
-- 「この Firefox」を選択
-- 「一時的なアドオンを読み込む」をクリック
-- 作成した `aws-prod-highlighter.zip` を選択
+- https://addons.mozilla.org/ja/developers/addons
+- 上記へアップロード

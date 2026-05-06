@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "AWS Production Account Highlighter",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "AWS本番アカウントのヘッダーを赤色で強調表示します",
     "icons": {
         "16": "icons/icon16.png",
@@ -10,9 +10,11 @@
     },
     "browser_specific_settings": {
         "gecko": {
-            "id": "aws-prod-highlighter@example.com",
+            "id": "{5388CE81-7AEC-4FEB-BCE1-0FBC6045E4A7}",
             "data_collection_permissions": {
-                "required": ["none"]
+                "required": [
+                    "none"
+                ]
             }
         }
     },

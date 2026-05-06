@@ -15,16 +15,15 @@ function highlightProductionAccount() {
     console.log('Detected account text:', accountText);
 
     // 正規表現でアカウントID部分を抽出
-    // 形式: "アカウント名 (1234-5678-9012)" からアカウントIDを取得
-    const accountIdMatch = accountText.match(/\((\d{4}-\d{4}-\d{4})\)/);
+    // 形式: "アカウント名 (123456789012)" からアカウントIDを取得
+    const accountIdMatch = accountText.match(/\((\d{12})\)/);
 
     if (!accountIdMatch) {
         console.log('Account ID pattern not found in text');
         return;
     }
 
-    // ハイフンを除去して12桁の数字にする
-    const accountId = accountIdMatch[1].replace(/-/g, '');
+    const accountId = accountIdMatch[1];
     console.log('Extracted AWS Account ID:', accountId);
 
     // 本番アカウントかチェック
