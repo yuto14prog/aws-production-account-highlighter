@@ -1,13 +1,40 @@
 function parseAccountId(text) {
-    const match = text.match(/\((\d{4})-?(\d{4})-?(\d{4})\)/);
-    return match ? match[1] + match[2] + match[3] : null;
+    if (!text) return null;
+
+    const paren = text.match(/\((\d{4})-?(\d{4})-?(\d{4})\)/);
+    if (paren) return paren[1] + paren[2] + paren[3];
+
+    const hyphen = text.match(/(?:^|[^\d])(\d{4})-(\d{4})-(\d{4})(?:[^\d]|$)/);
+    if (hyphen) return hyphen[1] + hyphen[2] + hyphen[3];
+
+    const plain = text.match(/(?:^|[^\d])(\d{12})(?:[^\d]|$)/);
+    return plain ? plain[1] : null;
+}
+
+function accountIdFromHost(hostname) {
+    const match = hostname && hostname.match(/^(\d{12})\./);
+    return match ? match[1] : null;
+}
+
+function readAccountId(doc) {
+    const label = doc.querySelector('span[data-testid="account-label"]');
+    if (label) {
+        const fromLabel = parseAccountId(label.textContent);
+        if (fromLabel) return fromLabel;
+    }
+
+    const nav = doc.querySelector('div#awsc-top-level-nav');
+    if (nav) {
+        const fromNav = parseAccountId(nav.textContent);
+        if (fromNav) return fromNav;
+    }
+
+    const hostname = doc.defaultView?.location?.hostname ?? globalThis.location?.hostname;
+    return accountIdFromHost(hostname);
 }
 
 function readVerdict(doc, prodIds) {
-    const label = doc.querySelector('span[data-testid="account-label"]');
-    if (!label) return { kind: 'unknown' };
-
-    const accountId = parseAccountId(label.textContent);
+    const accountId = readAccountId(doc);
     if (!accountId) return { kind: 'unknown' };
     if (prodIds.has(accountId)) return { kind: 'prod', accountId };
     return { kind: 'nonprod', accountId };
