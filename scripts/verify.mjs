@@ -30,6 +30,16 @@ function assertEqual(actual, expected, label) {
 
 assertEqual(parseAccountId('Name (123456789012)'), '123456789012', 'plain 12 digits');
 assertEqual(parseAccountId('Name (1234-5678-9012)'), '123456789012', 'hyphenated 12 digits');
+assertEqual(
+    parseAccountId('アカウント ID: 4773-1321-6013'),
+    '477313216013',
+    'bare hyphenated console menu id',
+);
+assertEqual(
+    parseAccountId('アカウント ID: 477313216013'),
+    '477313216013',
+    'bare plain console menu id',
+);
 assertEqual(parseAccountId('Name (1234-5678-901)'), null, 'short hyphenated id');
 assertEqual(parseAccountId('Name (abcdefghijkl)'), null, 'non-digits');
 
