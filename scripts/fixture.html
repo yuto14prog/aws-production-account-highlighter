@@ -14,7 +14,8 @@
 </head>
 <body>
   <div id="awsc-top-level-nav">
-    <span data-testid="account-label">fixture-prod (1234-5678-9012)</span>
+    <span data-testid="account-label">fixture-role/user@example.com</span>
+    <span>アカウント ID: 1234-5678-9012</span>
   </div>
   <pre id="status"></pre>
   <script>
@@ -24,7 +25,7 @@
   <script>
     const root = document.documentElement;
     const status = document.getElementById('status');
-    const label = document.querySelector('span[data-testid="account-label"]');
+    const nav = document.querySelector('#awsc-top-level-nav');
     const lines = [];
 
     function report(step, ok, detail) {
@@ -34,27 +35,33 @@
     }
 
     report(
-      'hyphenated prod paints via data-aws-prod',
+      'bare hyphenated menu id paints via data-aws-prod',
       root.getAttribute('data-aws-prod') === '123456789012',
       String(root.getAttribute('data-aws-prod')),
     );
 
-    label.textContent = 'fixture-prod (123456789012)';
-    report(
-      'plain digits stay prod without churn',
-      root.getAttribute('data-aws-prod') === '123456789012',
-      String(root.getAttribute('data-aws-prod')),
-    );
-
-    label.textContent = 'fixture-dev (999999999999)';
+    nav.innerHTML =
+      '<span data-testid="account-label">fixture-role/user@example.com</span>' +
+      '<span>アカウント ID: 123456789012</span>';
     setTimeout(() => {
       report(
-        'nonprod clears data-aws-prod',
-        !root.hasAttribute('data-aws-prod'),
+        'bare plain menu id stays prod',
+        root.getAttribute('data-aws-prod') === '123456789012',
         String(root.getAttribute('data-aws-prod')),
       );
-      if (!document.title.startsWith('FAIL')) document.title = 'PASS';
-    }, 100);
+
+      nav.innerHTML =
+        '<span data-testid="account-label">fixture-dev</span>' +
+        '<span>アカウント ID: 9999-9999-9999</span>';
+      setTimeout(() => {
+        report(
+          'nonprod clears data-aws-prod',
+          !root.hasAttribute('data-aws-prod'),
+          String(root.getAttribute('data-aws-prod')),
+        );
+        if (!document.title.startsWith('FAIL')) document.title = 'PASS';
+      }, 50);
+    }, 50);
   </script>
 </body>
 </html>
