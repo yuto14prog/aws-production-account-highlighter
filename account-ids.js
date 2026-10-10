@@ -1,8 +1,7 @@
 const AccountIds = (() => {
     const KEY = 'productionAccountIds';
 
-    // A console-parse change must not stop the options field from accepting 1234-5678-9012.
-    function normalizeField(text) {
+    function exactAccountId(text) {
         const line = text.trim();
         if (/^\d{12}$/.test(line)) return line;
         const parts = line.match(/^(\d{4})-(\d{4})-(\d{4})$/);
@@ -17,7 +16,7 @@ const AccountIds = (() => {
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
             if (line === '') continue;
-            const id = normalizeField(line);
+            const id = exactAccountId(line);
             if (!id) {
                 invalid.push({ line: i + 1, text: line });
                 continue;
@@ -33,7 +32,7 @@ const AccountIds = (() => {
         const ids = [];
         for (const entry of value) {
             if (typeof entry !== 'string') continue;
-            const id = normalizeField(entry);
+            const id = exactAccountId(entry);
             if (id && !ids.includes(id)) ids.push(id);
         }
         return ids;
