@@ -18,9 +18,11 @@
     <span>アカウント ID: 1234-5678-9012</span>
   </div>
   <pre id="status"></pre>
+  <script src="fake-storage.js"></script>
   <script>
-    const CONFIG = { PRODUCTION_ACCOUNT_IDS: ['123456789012'] };
+    installFakeStorage(globalThis);
   </script>
+  <script src="../account-ids.js"></script>
   <script src="../content.js"></script>
   <script>
     const root = document.documentElement;
@@ -28,40 +30,75 @@
     const nav = document.querySelector('#awsc-top-level-nav');
     const lines = [];
 
+    function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
     function report(step, ok, detail) {
       lines.push(`${ok ? 'PASS' : 'FAIL'} ${step}${detail ? ' — ' + detail : ''}`);
       status.textContent = lines.join('\n');
       if (!ok) document.title = 'FAIL';
     }
 
-    report(
-      'bare hyphenated menu id paints via data-aws-prod',
-      root.getAttribute('data-aws-prod') === '123456789012',
-      String(root.getAttribute('data-aws-prod')),
-    );
+    (async () => {
+      try {
+        await wait(50);
+        report(
+          'no saved ids leaves the nav unpainted',
+          !root.hasAttribute('data-aws-prod'),
+          String(root.getAttribute('data-aws-prod')),
+        );
 
-    nav.innerHTML =
-      '<span data-testid="account-label">fixture-role/user@example.com</span>' +
-      '<span>アカウント ID: 123456789012</span>';
-    setTimeout(() => {
-      report(
-        'bare plain menu id stays prod',
-        root.getAttribute('data-aws-prod') === '123456789012',
-        String(root.getAttribute('data-aws-prod')),
-      );
+        const hyphenHtml = nav.innerHTML;
+        await AccountIds.save('1234-5678-9012');
+        await wait(50);
+        report(
+          'saving a hyphenated id paints the bare hyphenated menu id',
+          root.getAttribute('data-aws-prod') === '123456789012' && nav.innerHTML === hyphenHtml,
+          String(root.getAttribute('data-aws-prod')),
+        );
 
-      nav.innerHTML =
-        '<span data-testid="account-label">fixture-dev</span>' +
-        '<span>アカウント ID: 9999-9999-9999</span>';
-      setTimeout(() => {
+        nav.innerHTML =
+          '<span data-testid="account-label">fixture-role/user@example.com</span>' +
+          '<span>アカウント ID: 123456789012</span>';
+        await wait(50);
+        report(
+          'bare plain menu id stays prod',
+          root.getAttribute('data-aws-prod') === '123456789012',
+          String(root.getAttribute('data-aws-prod')),
+        );
+
+        const plainHtml = nav.innerHTML;
+        await AccountIds.save('');
+        await wait(50);
+        report(
+          'clearing the saved list unpaints with no DOM change',
+          !root.hasAttribute('data-aws-prod') && nav.innerHTML === plainHtml,
+          String(root.getAttribute('data-aws-prod')),
+        );
+
+        await AccountIds.save('123456789012');
+        await wait(50);
+        report(
+          'saving again repaints with no DOM change',
+          root.getAttribute('data-aws-prod') === '123456789012' && nav.innerHTML === plainHtml,
+          String(root.getAttribute('data-aws-prod')),
+        );
+
+        nav.innerHTML =
+          '<span data-testid="account-label">fixture-dev</span>' +
+          '<span>アカウント ID: 9999-9999-9999</span>';
+        await wait(50);
         report(
           'nonprod clears data-aws-prod',
           !root.hasAttribute('data-aws-prod'),
           String(root.getAttribute('data-aws-prod')),
         );
         if (!document.title.startsWith('FAIL')) document.title = 'PASS';
-      }, 50);
-    }, 50);
+      } catch (error) {
+        report('fixture', false, String(error));
+      }
+    })();
   </script>
 </body>
 </html>

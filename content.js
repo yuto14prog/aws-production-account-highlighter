@@ -64,22 +64,22 @@ function applyVerdict(v) {
     root.removeAttribute('data-aws-prod');
 }
 
-function makeReconciler(prodIds) {
+function boot() {
+    installStyle();
+    let prodIds = new Set();
     let last = { kind: 'unknown' };
 
-    return function reconcile() {
+    function reconcile() {
         const next = readVerdict(document, prodIds);
         if (next.kind === last.kind && next.accountId === last.accountId) return;
         applyVerdict(next);
         last = next;
-    };
-}
+    }
 
-function boot() {
-    const prodIds = new Set(CONFIG.PRODUCTION_ACCOUNT_IDS);
-    installStyle();
-    const reconcile = makeReconciler(prodIds);
-    reconcile();
+    AccountIds.watch((ids) => {
+        prodIds = new Set(ids);
+        reconcile();
+    });
 
     new MutationObserver(() => {
         reconcile();
