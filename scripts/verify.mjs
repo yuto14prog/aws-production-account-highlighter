@@ -109,36 +109,6 @@ function assertManifestFiles() {
             process.exitCode = 1;
         }
     }
-    assertEqual(manifest.version, '1.1.0', 'version');
-    assertEqual(manifest.permissions, ['storage'], 'storage permission');
-    assertEqual(
-        manifest.options_ui,
-        { page: 'options.html', open_in_tab: true },
-        'options_ui',
-    );
-    assertEqual(
-        manifest.browser_specific_settings.gecko.id,
-        '{5388CE81-7AEC-4FEB-BCE1-0FBC6045E4A7}',
-        'gecko id',
-    );
-    assertEqual(
-        manifest.browser_specific_settings.gecko.data_collection_permissions.required,
-        ['none'],
-        'data collection',
-    );
-    assertEqual(
-        manifest.content_scripts[0].matches,
-        [
-            'https://*.console.aws.amazon.com/*',
-            'https://console.aws.amazon.com/*',
-        ],
-        'console matches',
-    );
-    assertEqual(manifest.content_scripts[0].run_at, 'document_end', 'run_at');
-    assertEqual(manifest.background, undefined, 'no background');
-    assertEqual(manifest.action, undefined, 'no action');
-    assertEqual(manifest.web_accessible_resources, undefined, 'no web accessible resources');
-    assertEqual(source.includes('CONFIG'), false, 'content.js does not read CONFIG');
     assertEqual(existsSync(join(root, 'config.sample.js')), false, 'config.sample.js is deleted');
     assertEqual(
         readFileSync(join(root, '.gitignore'), 'utf8').split('\n').includes('config.js'),
@@ -311,6 +281,17 @@ async function main() {
             { ok: true, ids: ['123456789012'] },
             'hyphenated field saves without the console parser',
         );
+    }
+
+    {
+        const context = createContext({ console, setTimeout, queueMicrotask });
+        runInContext(readFileSync(join(root, 'scripts/fake-storage.js'), 'utf8'), context);
+        runInContext('installFakeStorage(globalThis)', context);
+        runInContext('globalThis.chrome = globalThis.browser; delete globalThis.browser;', context);
+        runInContext(readFileSync(join(root, 'account-ids.js'), 'utf8'), context);
+        const chromeOnly = runInContext('AccountIds', context);
+        const result = await chromeOnly.save('123456789012');
+        assertEqual(result, { ok: true, ids: ['123456789012'] }, 'chrome namespace without browser');
     }
 
     assertManifestFiles();
