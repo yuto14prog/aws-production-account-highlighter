@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "AWS Production Account Highlighter",
-    "version": "1.0.3",
+    "version": "1.1.0",
     "description": "AWS本番アカウントのヘッダーを赤色で強調表示します",
     "icons": {
         "16": "icons/icon16.png",
@@ -25,11 +25,17 @@
                 "https://console.aws.amazon.com/*"
             ],
             "js": [
-                "config.js",
+                "account-ids.js",
                 "content.js"
             ],
             "run_at": "document_end"
         }
     ],
-    "permissions": []
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": true
+    },
+    "permissions": [
+        "storage"
+    ]
 }

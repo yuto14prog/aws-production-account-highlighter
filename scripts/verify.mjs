@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createContext, runInContext } from 'node:vm';
@@ -44,6 +44,116 @@ function load() {
             return runInContext(code, context);
         },
     };
+}
+
+function invalidLine(line, text) {
+    return `${line}行目「${text}」は半角数字12桁のアカウントIDではありません（例 123456789012、1234-5678-9012）`;
+}
+
+async function loadOptions(seed) {
+    const context = createContext({ console, setTimeout, queueMicrotask });
+    runInContext(readFileSync(join(root, 'scripts/fake-storage.js'), 'utf8'), context);
+    runInContext('installFakeStorage(globalThis)', context);
+    if (seed) {
+        const storage = runInContext('browser.storage', context);
+        await storage.local.set(seed);
+        await tick();
+    }
+    runInContext(`
+        const els = {
+            ids: { value: '' },
+            save: {
+                disabled: true,
+                addEventListener(type, fn) {
+                    if (type === 'click') this.onclick = fn;
+                },
+            },
+            status: { textContent: '' },
+        };
+        globalThis.__els = els;
+        globalThis.document = {
+            getElementById(id) {
+                return els[id];
+            },
+        };
+    `, context);
+    runInContext(readFileSync(join(root, 'account-ids.js'), 'utf8'), context);
+    runInContext(readFileSync(join(root, 'options.js'), 'utf8'), context);
+    return {
+        storage: runInContext('browser.storage', context),
+        els: runInContext('__els', context),
+    };
+}
+
+function assertManifestFiles() {
+    const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
+    const named = [];
+    for (const entry of manifest.content_scripts ?? []) {
+        for (const file of entry.js ?? []) {
+            named.push(file);
+            if (file === 'config.js') {
+                console.error('manifest names config.js');
+                process.exitCode = 1;
+            }
+        }
+    }
+    if (manifest.options_ui && manifest.options_ui.page) named.push(manifest.options_ui.page);
+    for (const file of Object.values(manifest.icons ?? {})) named.push(file);
+    if (named.length === 0) {
+        console.error('manifest names no files');
+        process.exitCode = 1;
+    }
+    for (const file of named) {
+        if (!existsSync(join(root, file))) {
+            console.error(`missing manifest file: ${file}`);
+            process.exitCode = 1;
+        }
+    }
+    assertEqual(manifest.version, '1.1.0', 'version');
+    assertEqual(manifest.permissions, ['storage'], 'storage permission');
+    assertEqual(
+        manifest.options_ui,
+        { page: 'options.html', open_in_tab: true },
+        'options_ui',
+    );
+    assertEqual(
+        manifest.browser_specific_settings.gecko.id,
+        '{5388CE81-7AEC-4FEB-BCE1-0FBC6045E4A7}',
+        'gecko id',
+    );
+    assertEqual(
+        manifest.browser_specific_settings.gecko.data_collection_permissions.required,
+        ['none'],
+        'data collection',
+    );
+    assertEqual(
+        manifest.content_scripts[0].matches,
+        [
+            'https://*.console.aws.amazon.com/*',
+            'https://console.aws.amazon.com/*',
+        ],
+        'console matches',
+    );
+    assertEqual(manifest.content_scripts[0].run_at, 'document_end', 'run_at');
+    assertEqual(manifest.background, undefined, 'no background');
+    assertEqual(manifest.action, undefined, 'no action');
+    assertEqual(manifest.web_accessible_resources, undefined, 'no web accessible resources');
+    assertEqual(source.includes('CONFIG'), false, 'content.js does not read CONFIG');
+    assertEqual(existsSync(join(root, 'config.sample.js')), false, 'config.sample.js is deleted');
+    assertEqual(
+        readFileSync(join(root, '.gitignore'), 'utf8').split('\n').includes('config.js'),
+        true,
+        'gitignore keeps config.js',
+    );
+    const optionsHtml = readFileSync(join(root, 'options.html'), 'utf8');
+    const accountAt = optionsHtml.indexOf('src="account-ids.js"');
+    const optionsAt = optionsHtml.indexOf('src="options.js"');
+    assertEqual(accountAt !== -1 && optionsAt > accountAt, true, 'options page loads account ids first');
+    assertEqual(
+        /<button\b[^>]*\bdisabled\b[^>]*>\s*保存\s*<\/button>/.test(optionsHtml),
+        true,
+        'save button starts disabled',
+    );
 }
 
 assertEqual(parseAccountId('Name (123456789012)'), '123456789012', 'plain 12 digits');
@@ -200,6 +310,119 @@ async function main() {
             result,
             { ok: true, ids: ['123456789012'] },
             'hyphenated field saves without the console parser',
+        );
+    }
+
+    assertManifestFiles();
+
+    {
+        const page = await loadOptions();
+        assertEqual(page.els.save.disabled, true, 'save stays disabled before the first read');
+        assertEqual(page.els.ids.value, '', 'field stays empty before the first read');
+        await tick();
+        assertEqual(page.els.save.disabled, false, 'save enables after the first read');
+        assertEqual(page.els.ids.value, '', 'an empty store fills an empty field');
+
+        page.els.ids.value = '123456789012\n1234-5678-9012\n210987654321';
+        await page.els.save.onclick();
+        await tick();
+        assertEqual(page.els.status.textContent, '保存しました（2件）', 'save reports the stored count');
+        assertEqual(page.els.ids.value, '123456789012\n210987654321', 'save rewrites the field from the stored list');
+        const stored = await page.storage.local.get('productionAccountIds');
+        assertEqual(stored.productionAccountIds, ['123456789012', '210987654321'], 'options save stores the list');
+
+        page.els.ids.value = 'Name (123456789012)\n12345';
+        await page.els.save.onclick();
+        assertEqual(
+            page.els.status.textContent,
+            [invalidLine(1, 'Name (123456789012)'), invalidLine(2, '12345')].join('\n'),
+            'invalid lines name the line number and mention 半角',
+        );
+        assertEqual(page.els.ids.value, 'Name (123456789012)\n12345', 'a rejected save keeps the field text');
+        const afterReject = await page.storage.local.get('productionAccountIds');
+        assertEqual(
+            afterReject.productionAccountIds,
+            ['123456789012', '210987654321'],
+            'a rejected options save leaves storage unchanged',
+        );
+
+        page.els.ids.value = '';
+        await page.els.save.onclick();
+        assertEqual(page.els.status.textContent, '保存しました（本番アカウントなし）', 'an empty save says there are no production accounts');
+        const cleared = await page.storage.local.get('productionAccountIds');
+        assertEqual(cleared.productionAccountIds, [], 'an empty options save stores an empty list');
+    }
+
+    {
+        const page = await loadOptions({
+            productionAccountIds: ['123456789012', '210987654321'],
+        });
+        await tick();
+        assertEqual(page.els.ids.value, '123456789012\n210987654321', 'the first read fills the field');
+        assertEqual(page.els.save.disabled, false, 'the first read enables save');
+    }
+
+    {
+        const page = await loadOptions();
+        await tick();
+        page.storage.local.set = () => Promise.reject(new Error('unavailable'));
+        page.els.ids.value = '123456789012';
+        await page.els.save.onclick();
+        assertEqual(page.els.status.textContent, '保存できませんでした', 'a storage rejection says the save failed');
+        const stored = await page.storage.local.get('productionAccountIds');
+        assertEqual(stored, {}, 'a rejected storage write stores nothing');
+    }
+
+    {
+        const warnings = [];
+        const context = createContext({
+            console: {
+                warn(...args) {
+                    warnings.push(args);
+                },
+            },
+            setTimeout,
+            queueMicrotask,
+        });
+        runInContext(`
+            globalThis.browser = {
+                storage: {
+                    local: {
+                        get() { return Promise.reject(new Error('unavailable')); },
+                        set() { return Promise.reject(new Error('unavailable')); },
+                    },
+                    onChanged: { addListener() {} },
+                },
+            };
+            const els = {
+                ids: { value: '123456789012' },
+                save: {
+                    disabled: true,
+                    addEventListener(type, fn) {
+                        if (type === 'click') this.onclick = fn;
+                    },
+                },
+                status: { textContent: '' },
+            };
+            globalThis.__els = els;
+            globalThis.document = {
+                getElementById(id) {
+                    return els[id];
+                },
+            };
+        `, context);
+        runInContext(readFileSync(join(root, 'account-ids.js'), 'utf8'), context);
+        runInContext(readFileSync(join(root, 'options.js'), 'utf8'), context);
+        const els = runInContext('__els', context);
+        await tick();
+        assertEqual(els.save.disabled, true, 'a failed read leaves save disabled');
+        assertEqual(els.ids.value, '123456789012', 'a failed read does not fill the field');
+        assertEqual(els.status.textContent, '', 'a failed read does not report a save');
+        assertEqual(warnings.length, 1, 'a failed read warns once');
+        assertEqual(
+            warnings[0] && warnings[0][0],
+            'AWS production account ids could not be read',
+            'a failed read names the list in the warning',
         );
     }
 }
